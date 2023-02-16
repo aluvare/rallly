@@ -2,67 +2,95 @@ import "react-big-calendar/lib/css/react-big-calendar.css";
 import "tailwindcss/tailwind.css";
 import "~/style.css";
 
-import { withTRPC } from "@trpc/next";
+import { Inter, Noto_Sans_Mono } from "@next/font/google";
+import { inject } from "@vercel/analytics";
 import { NextPage } from "next";
 import { AppProps } from "next/app";
-import dynamic from "next/dynamic";
 import Head from "next/head";
 import { appWithTranslation } from "next-i18next";
-import PlausibleProvider from "next-plausible";
-import toast, { Toaster } from "react-hot-toast";
-import { MutationCache } from "react-query";
-import superjson from "superjson";
+import { DefaultSeo } from "next-seo";
+import React from "react";
+import { Toaster } from "react-hot-toast";
 
 import Maintenance from "@/components/maintenance";
 
-import { AppRouter } from "./api/trpc/[trpc]";
+import { useCrispChat } from "../components/crisp-chat";
+import { NextPageWithLayout } from "../types";
+import { absoluteUrl } from "../utils/absolute-url";
+import { UserSession } from "../utils/auth";
+import { trpcNext } from "../utils/trpc";
 
-const CrispChat = dynamic(() => import("@/components/crisp-chat"), {
-  ssr: false,
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
 });
 
-const MyApp: NextPage<AppProps> = ({ Component, pageProps }) => {
+const noto = Noto_Sans_Mono({
+  subsets: ["latin"],
+  display: "swap",
+});
+
+type PageProps = {
+  user: UserSession;
+};
+
+type AppPropsWithLayout = AppProps<PageProps> & {
+  Component: NextPageWithLayout<PageProps>;
+};
+
+const MyApp: NextPage<AppPropsWithLayout> = ({ Component, pageProps }) => {
+  useCrispChat();
+
+  React.useEffect(() => {
+    if (process.env.NEXT_PUBLIC_ENABLE_ANALYTICS) {
+      // calling inject directly to avoid having this run for self-hosted instances
+      inject({ debug: false });
+    }
+  }, []);
+
   if (process.env.NEXT_PUBLIC_MAINTENANCE_MODE === "1") {
     return <Maintenance />;
   }
+
+  const getLayout = Component.getLayout ?? ((page) => page);
+
   return (
-    <PlausibleProvider
-      domain="rallly.co"
-      customDomain={process.env.PLAUSIBLE_DOMAIN}
-      trackOutboundLinks={true}
-      selfHosted={true}
-      enabled={!!process.env.PLAUSIBLE_DOMAIN}
-    >
+    <>
+      <DefaultSeo
+        openGraph={{
+          siteName: "Rallly",
+          type: "website",
+          url: absoluteUrl(),
+          images: [
+            {
+              url: absoluteUrl("/og-image-1200.png"),
+              width: 1200,
+              height: 630,
+              alt: "Rallly | Schedule group meetings",
+              type: "image/png",
+            },
+          ],
+        }}
+        facebook={{
+          appId: "920386682263077",
+        }}
+      />
       <Head>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no"
+        />
       </Head>
-      <CrispChat />
       <Toaster />
-      <Component {...pageProps} />
-    </PlausibleProvider>
+      <style jsx global>{`
+        html {
+          --font-inter: ${inter.style.fontFamily};
+          --font-noto: ${noto.style.fontFamily};
+        }
+      `}</style>
+      {getLayout(<Component {...pageProps} />)}
+    </>
   );
 };
 
-export default withTRPC<AppRouter>({
-  config() {
-    const url = "/api/trpc";
-
-    return {
-      transformer: superjson,
-      url,
-      /**
-       * @link https://react-query.tanstack.com/reference/QueryClient
-       */
-      queryClientConfig: {
-        mutationCache: new MutationCache({
-          onError: () => {
-            toast.error(
-              "Uh oh! Something went wrong. The issue has been logged and we'll fix it as soon as possible. Please try again later.",
-            );
-          },
-        }),
-      },
-    };
-  },
-  ssr: false, // doesn't play well with how we're fetching legacy endpoints. consider switching it on when we don't need to get legacy polls
-})(appWithTranslation(MyApp));
+export default trpcNext.withTRPC(appWithTranslation(MyApp));

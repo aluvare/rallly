@@ -8,14 +8,11 @@ import {
 } from "@floating-ui/react-dom-interactions";
 import { Menu } from "@headlessui/react";
 import clsx from "clsx";
-import { motion } from "framer-motion";
 import Link from "next/link";
 import * as React from "react";
 
 import { transformOriginByPlacement } from "@/utils/constants";
 import { stopPropagation } from "@/utils/stop-propagation";
-
-const MotionMenuItems = motion(Menu.Items);
 
 export interface DropdownProps {
   trigger?: React.ReactNode;
@@ -56,13 +53,9 @@ const Dropdown: React.VoidFunctionComponent<DropdownProps> = ({
           </Menu.Button>
           <FloatingPortal>
             {open ? (
-              <MotionMenuItems
-                transition={{ duration: 0.1 }}
-                initial={{ opacity: 0, scale: 0.9, y: -10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: -10 }}
+              <Menu.Items
                 className={clsx(
-                  "z-50 divide-gray-100 rounded-md bg-white p-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none",
+                  "z-50 animate-popIn divide-gray-100 rounded-md bg-white p-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none",
                   animationOrigin,
                 )}
                 onMouseDown={stopPropagation}
@@ -74,7 +67,7 @@ const Dropdown: React.VoidFunctionComponent<DropdownProps> = ({
                 }}
               >
                 {children}
-              </MotionMenuItems>
+              </Menu.Items>
             ) : null}
           </FloatingPortal>
         </>
@@ -83,57 +76,32 @@ const Dropdown: React.VoidFunctionComponent<DropdownProps> = ({
   );
 };
 
-const AnchorLink: React.VoidFunctionComponent<{
-  href?: string;
-  children?: React.ReactNode;
-  className?: string;
-}> = ({ href = "", className, children, ...forwardProps }) => {
-  return (
-    <Link href={href} passHref>
-      <a
-        className={clsx(
-          "font-normal hover:text-white hover:no-underline",
-          className,
-        )}
-        {...forwardProps}
-      >
-        {children}
-      </a>
-    </Link>
-  );
-};
-
 export const DropdownItem: React.VoidFunctionComponent<{
   icon?: React.ComponentType<{ className?: string }>;
   label?: React.ReactNode;
   disabled?: boolean;
   href?: string;
-  onClick?: () => void;
+  onClick?: React.MouseEventHandler<HTMLElement>;
 }> = ({ icon: Icon, label, onClick, disabled, href }) => {
-  const Element = href ? AnchorLink : "button";
+  const Element = href ? Link : "button";
   return (
     <Menu.Item disabled={disabled}>
       {({ active }) => (
         <Element
-          href={href}
+          // TODO (Luke Vella) [2023-02-10]: Find a better solution for having a mixture of links and buttons
+          // in a dropdown
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          href={href as any}
           onClick={onClick}
           className={clsx(
-            "group flex w-full items-center rounded py-2 pl-2 pr-4",
+            "relative flex w-full select-none items-center whitespace-nowrap rounded py-1.5 pl-2 pr-4 font-medium text-slate-600",
             {
-              "bg-primary-500 text-white": active,
-              "text-gray-700": !active,
+              "bg-slate-100": active,
               "opacity-50": disabled,
             },
           )}
         >
-          {Icon && (
-            <Icon
-              className={clsx("mr-2 h-5 w-5", {
-                "text-white": active,
-                "text-primary-500": !active,
-              })}
-            />
-          )}
+          {Icon && <Icon className={clsx("mr-2 h-5 shrink-0")} />}
           {label}
         </Element>
       )}

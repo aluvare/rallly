@@ -1,12 +1,13 @@
 import { Participant, VoteType } from "@prisma/client";
 import clsx from "clsx";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import { useTranslation } from "next-i18next";
 import * as React from "react";
 
 import ChevronDown from "@/components/icons/chevron-down.svg";
 
 import { useParticipants } from "../../participants-provider";
+import { usePoll } from "../../poll-context";
 import { ScoreSummary } from "../score-summary";
 import UserAvatar from "../user-avatar";
 import VoteIcon from "../vote-icon";
@@ -32,7 +33,7 @@ const CollapsibleContainer: React.VoidFunctionComponent<{
   return (
     <AnimatePresence initial={false}>
       {expanded ? (
-        <motion.div
+        <m.div
           variants={{
             collapsed: {
               width: 0,
@@ -40,7 +41,7 @@ const CollapsibleContainer: React.VoidFunctionComponent<{
             },
             expanded: {
               opacity: 1,
-              width: 58,
+              width: "auto",
             },
           }}
           initial="collapsed"
@@ -49,7 +50,7 @@ const CollapsibleContainer: React.VoidFunctionComponent<{
           className={className}
         >
           {children}
-        </motion.div>
+        </m.div>
       ) : null}
     </AnimatePresence>
   );
@@ -60,14 +61,14 @@ const PopInOut: React.VoidFunctionComponent<{
   className?: string;
 }> = ({ children, className }) => {
   return (
-    <motion.div
+    <m.div
       initial={{ scale: 0 }}
       animate={{ scale: 1 }}
       exit={{ scale: 0 }}
       className={clsx(className)}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 };
 
@@ -82,7 +83,7 @@ const PollOptionVoteSummary: React.VoidFunctionComponent<{ optionId: string }> =
       participantsWhoVotedYes.length + participantsWhoVotedIfNeedBe.length ===
       0;
     return (
-      <motion.div
+      <m.div
         transition={{
           duration: 0.1,
         }}
@@ -101,7 +102,7 @@ const PollOptionVoteSummary: React.VoidFunctionComponent<{ optionId: string }> =
               <div className="col-span-1 space-y-2">
                 {participantsWhoVotedYes.map(({ name }, i) => (
                   <div key={i} className="flex">
-                    <div className="relative mr-2 flex h-5 w-5 items-center justify-center">
+                    <div className="relative mr-2 flex items-center justify-center">
                       <UserAvatar name={name} />
                       <VoteIcon
                         type="yes"
@@ -112,9 +113,11 @@ const PollOptionVoteSummary: React.VoidFunctionComponent<{ optionId: string }> =
                     <div className="text-slate-500">{name}</div>
                   </div>
                 ))}
+              </div>
+              <div className="col-span-1 space-y-2">
                 {participantsWhoVotedIfNeedBe.map(({ name }, i) => (
                   <div key={i} className="flex">
-                    <div className="relative mr-2 flex h-5 w-5 items-center justify-center">
+                    <div className="relative mr-2 flex items-center justify-center">
                       <UserAvatar name={name} />
                       <VoteIcon
                         type="ifNeedBe"
@@ -125,11 +128,9 @@ const PollOptionVoteSummary: React.VoidFunctionComponent<{ optionId: string }> =
                     <div className="text-slate-500"> {name}</div>
                   </div>
                 ))}
-              </div>
-              <div className="col-span-1 space-y-2">
                 {participantsWhoVotedNo.map(({ name }, i) => (
                   <div key={i} className="flex">
-                    <div className="relative mr-2 flex h-5 w-5 items-center justify-center">
+                    <div className="relative mr-2 flex items-center justify-center">
                       <UserAvatar name={name} />
                       <VoteIcon
                         type="no"
@@ -144,7 +145,7 @@ const PollOptionVoteSummary: React.VoidFunctionComponent<{ optionId: string }> =
             </div>
           )}
         </div>
-      </motion.div>
+      </m.div>
     );
   };
 
@@ -154,7 +155,7 @@ const SummarizedParticipantList: React.VoidFunctionComponent<{
   return (
     <div className="flex -space-x-1">
       {participants
-        .slice(0, participants.length <= 8 ? 8 : 7)
+        .slice(0, participants.length <= 6 ? 6 : 5)
         .map((participant, i) => {
           return (
             <UserAvatar
@@ -164,9 +165,9 @@ const SummarizedParticipantList: React.VoidFunctionComponent<{
             />
           );
         })}
-      {participants.length > 8 ? (
+      {participants.length > 6 ? (
         <span className="inline-flex h-5 items-center justify-center rounded-full bg-slate-100 px-1 text-xs font-medium ring-1 ring-white">
-          +{participants.length - 7}
+          +{participants.length - 5}
         </span>
       ) : null}
     </div>
@@ -183,13 +184,37 @@ const PollOption: React.VoidFunctionComponent<PollOptionProps> = ({
   yesScore,
   optionId,
 }) => {
+  const { getVote } = usePoll();
   const showVotes = !!(selectedParticipantId || editable);
   const [expanded, setExpanded] = React.useState(false);
   const selectorRef = React.useRef<HTMLButtonElement>(null);
   const [active, setActive] = React.useState(false);
+
+  const score = React.useMemo(() => {
+    if (!editable) {
+      return yesScore;
+    }
+
+    if (selectedParticipantId) {
+      const currentVote = getVote(selectedParticipantId, optionId);
+      return (
+        yesScore +
+        (currentVote === "yes"
+          ? vote === "yes"
+            ? 0
+            : -1
+          : vote === "yes"
+          ? 1
+          : 0)
+      );
+    }
+
+    return yesScore + (vote === "yes" ? 1 : 0);
+  }, [editable, getVote, optionId, selectedParticipantId, vote, yesScore]);
+
   return (
     <div
-      className={clsx("space-y-4 overflow-hidden p-4", {
+      className={clsx("space-y-4 overflow-hidden p-3", {
         "bg-slate-400/5": editable && active,
       })}
       onTouchStart={() => setActive(editable)}
@@ -199,46 +224,55 @@ const PollOption: React.VoidFunctionComponent<PollOptionProps> = ({
         selectorRef.current?.click();
       }}
     >
-      <div className="flex select-none transition duration-75">
-        <div className="flex grow space-x-8">
-          <div>{children}</div>
-          <div className="flex grow items-center justify-end">
-            <button
+      <div className="flex select-none items-center transition duration-75">
+        <div className="mr-3 shrink-0 grow">{children}</div>
+        <AnimatePresence initial={false}>
+          {editable ? null : (
+            <m.button
+              exit={{ opacity: 0, x: -10 }}
               type="button"
               onTouchStart={(e) => e.stopPropagation()}
-              className="flex justify-end rounded-lg p-2 active:bg-slate-500/10"
+              className="flex min-w-0 justify-end gap-1 overflow-hidden p-1 active:bg-slate-500/10"
               onClick={(e) => {
                 e.stopPropagation();
                 setExpanded((value) => !value);
               }}
             >
-              <ScoreSummary yesScore={yesScore} />
+              {participants.length > 0 ? (
+                <SummarizedParticipantList participants={participants} />
+              ) : null}
               <ChevronDown
-                className={clsx("h-5 text-slate-400 transition-transform", {
-                  "-rotate-180": expanded,
-                })}
+                className={clsx(
+                  "h-5 shrink-0 text-slate-400 transition-transform",
+                  {
+                    "-rotate-180": expanded,
+                  },
+                )}
               />
-            </button>
-          </div>
+            </m.button>
+          )}
+        </AnimatePresence>
+        <div className="mx-3">
+          <ScoreSummary yesScore={score} />
         </div>
         <CollapsibleContainer
           expanded={showVotes}
           className="relative flex justify-center"
         >
           {editable ? (
-            <div className="flex h-full w-14 items-center justify-center">
+            <div className="flex h-full items-center justify-center">
               <VoteSelector
+                className="w-9"
                 ref={selectorRef}
                 value={vote}
                 onChange={onChange}
-                className="w-9"
               />
             </div>
           ) : (
-            <AnimatePresence initial={false}>
+            <AnimatePresence initial={false} exitBeforeEnter={true}>
               <PopInOut
                 key={vote}
-                className="absolute inset-0 flex h-full items-center justify-center"
+                className="flex h-full w-9 items-center justify-center"
               >
                 <VoteIcon type={vote} />
               </PopInOut>
@@ -247,11 +281,10 @@ const PollOption: React.VoidFunctionComponent<PollOptionProps> = ({
         </CollapsibleContainer>
       </div>
       <AnimatePresence initial={false}>
-        {expanded ? <PollOptionVoteSummary optionId={optionId} /> : null}
+        {expanded && !editable ? (
+          <PollOptionVoteSummary optionId={optionId} />
+        ) : null}
       </AnimatePresence>
-      {!expanded && participants.length > 0 ? (
-        <SummarizedParticipantList participants={participants} />
-      ) : null}
     </div>
   );
 };

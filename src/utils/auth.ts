@@ -1,9 +1,19 @@
-import { IronSessionOptions, sealData, unsealData } from "iron-session";
+import {
+  IronSession,
+  IronSessionOptions,
+  sealData,
+  unsealData,
+} from "iron-session";
 import { withIronSessionApiRoute, withIronSessionSsr } from "iron-session/next";
-import { GetServerSideProps, NextApiHandler } from "next";
+import {
+  GetServerSideProps,
+  GetServerSidePropsContext,
+  NextApiHandler,
+} from "next";
 
 import { prisma } from "~/prisma/db";
 
+import { createSSGHelperFromContext } from "../server/context";
 import { randomid } from "./nanoid";
 
 const sessionOptions: IronSessionOptions = {
@@ -15,27 +25,111 @@ const sessionOptions: IronSessionOptions = {
   ttl: 0, // basically forever
 };
 
+export type RegistrationTokenPayload = {
+  name: string;
+  email: string;
+  code: string;
+};
+
+export type LoginTokenPayload = {
+  userId: string;
+  code: string;
+};
+
+export type RegisteredUserSession = {
+  isGuest: false;
+  id: string;
+  name: string;
+  email: string;
+};
+
+export type GuestUserSession = {
+  isGuest: true;
+  id: string;
+};
+
+export type UserSession = GuestUserSession | RegisteredUserSession;
+
+const setUser = async (session: IronSession) => {
+  if (!session.user) {
+    session.user = await createGuestUser();
+    await session.save();
+  }
+
+  if (!session.user.isGuest) {
+    // Check registered user still exists
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+    });
+
+    if (!user) {
+      session.user = await createGuestUser();
+      await session.save();
+    }
+  }
+};
+
 export function withSessionRoute(handler: NextApiHandler) {
   return withIronSessionApiRoute(async (req, res) => {
-    if (!req.session.user) {
-      req.session.user = await createGuestUser();
-      await req.session.save();
-    }
+    await setUser(req.session);
     return await handler(req, res);
   }, sessionOptions);
 }
 
-export function withSessionSsr(handler: GetServerSideProps) {
-  return withIronSessionSsr(async (context) => {
-    const { req } = context;
-    if (!req.session.user) {
-      req.session.user = await createGuestUser();
-      await req.session.save();
-    }
-    const res = await handler(context);
+const compose = (...fns: GetServerSideProps[]): GetServerSideProps => {
+  return async (ctx) => {
+    const res = { props: {} };
+    for (const getServerSideProps of fns) {
+      const fnRes = await getServerSideProps(ctx);
 
+      if ("props" in fnRes) {
+        res.props = {
+          ...res.props,
+          ...fnRes.props,
+        };
+      } else {
+        return { notFound: true };
+      }
+    }
+
+    return res;
+  };
+};
+
+export function withSessionSsr(
+  handler: GetServerSideProps | GetServerSideProps[],
+  options?: {
+    onPrefetch?: (
+      ssg: Awaited<ReturnType<typeof createSSGHelperFromContext>>,
+      ctx: GetServerSidePropsContext,
+    ) => Promise<void>;
+  },
+): GetServerSideProps {
+  const composedHandler = Array.isArray(handler)
+    ? compose(...handler)
+    : handler;
+
+  return withIronSessionSsr(async (ctx) => {
+    const ssg = await createSSGHelperFromContext(ctx);
+    await ssg.whoami.get.prefetch(); // always prefetch user
+    if (options?.onPrefetch) {
+      try {
+        await options.onPrefetch(ssg, ctx);
+      } catch {
+        return {
+          notFound: true,
+        };
+      }
+    }
+    const res = await composedHandler(ctx);
     if ("props" in res) {
-      return { ...res, props: { ...res.props, user: req.session.user } };
+      return {
+        ...res,
+        props: {
+          ...res.props,
+          trpcState: ssg.dehydrate(),
+        },
+      };
     }
 
     return res;
@@ -95,4 +189,12 @@ export const mergeGuestsIntoUser = async (
       userId: userId,
     },
   });
+};
+
+export const getCurrentUser = async (
+  session: IronSession,
+): Promise<{ isGuest: boolean; id: string }> => {
+  await setUser(session);
+
+  return session.user;
 };

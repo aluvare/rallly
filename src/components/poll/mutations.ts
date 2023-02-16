@@ -1,8 +1,6 @@
-import { usePlausible } from "next-plausible";
+import posthog from "posthog-js";
 
-import { trpc } from "../../utils/trpc";
-import { usePoll } from "../poll-context";
-import { useSession } from "../session";
+import { trpc, trpcNext } from "../../utils/trpc";
 import { ParticipantForm } from "./types";
 
 export const normalizeVotes = (
@@ -17,33 +15,29 @@ export const normalizeVotes = (
 
 export const useAddParticipantMutation = () => {
   const queryClient = trpc.useContext();
-  const session = useSession();
-  const plausible = usePlausible();
 
   return trpc.useMutation(["polls.participants.add"], {
     onSuccess: (participant) => {
-      plausible("Add participant");
+      posthog.capture("add participant", {
+        name: participant.name,
+      });
       queryClient.setQueryData(
         ["polls.participants.list", { pollId: participant.pollId }],
         (existingParticipants = []) => {
-          return [...existingParticipants, participant];
+          return [participant, ...existingParticipants];
         },
       );
-      queryClient.invalidateQueries([
-        "polls.participants.list",
-        { pollId: participant.pollId },
-      ]);
-      session.refresh();
     },
   });
 };
 
 export const useUpdateParticipantMutation = () => {
   const queryClient = trpc.useContext();
-  const plausible = usePlausible();
   return trpc.useMutation("polls.participants.update", {
     onSuccess: (participant) => {
-      plausible("Update participant");
+      posthog.capture("update participant", {
+        name: participant.name,
+      });
       queryClient.setQueryData(
         ["polls.participants.list", { pollId: participant.pollId }],
         (existingParticipants = []) => {
@@ -66,7 +60,6 @@ export const useUpdateParticipantMutation = () => {
 
 export const useDeleteParticipantMutation = () => {
   const queryClient = trpc.useContext();
-  const plausible = usePlausible();
   return trpc.useMutation("polls.participants.delete", {
     onMutate: ({ participantId, pollId }) => {
       queryClient.setQueryData(
@@ -76,20 +69,22 @@ export const useDeleteParticipantMutation = () => {
         },
       );
     },
-    onSuccess: () => {
-      plausible("Remove participant");
+    onSuccess: (_, { participantId }) => {
+      posthog.capture("remove participant", {
+        participantId,
+      });
     },
   });
 };
 
 export const useUpdatePollMutation = () => {
-  const { urlId, admin } = usePoll();
-  const plausible = usePlausible();
-  const queryClient = trpc.useContext();
+  const queryClient = trpcNext.useContext();
   return trpc.useMutation(["polls.update"], {
     onSuccess: (data) => {
-      queryClient.setQueryData(["polls.get", { urlId, admin }], data);
-      plausible("Updated poll");
+      queryClient.poll.invalidate();
+      posthog.capture("updated poll", {
+        id: data.id,
+      });
     },
   });
 };

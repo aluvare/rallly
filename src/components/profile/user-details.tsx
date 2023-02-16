@@ -1,13 +1,14 @@
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { useTranslation } from "next-i18next";
+import posthog from "posthog-js";
 import * as React from "react";
 import { useForm } from "react-hook-form";
 
 import { requiredString, validEmail } from "../../utils/form-validation";
 import { trpc } from "../../utils/trpc";
 import { Button } from "../button";
-import { useSession } from "../session";
 import { TextInput } from "../text-input";
+import { useUser } from "../user-provider";
 
 export interface UserDetailsProps {
   userId: string;
@@ -15,7 +16,7 @@ export interface UserDetailsProps {
   email?: string;
 }
 
-const MotionButton = motion(Button);
+const MotionButton = m(Button);
 
 export const UserDetails: React.VoidFunctionComponent<UserDetailsProps> = ({
   userId,
@@ -30,10 +31,11 @@ export const UserDetails: React.VoidFunctionComponent<UserDetailsProps> = ({
     defaultValues: { name, email },
   });
 
-  const { refresh } = useSession();
+  const { refresh } = useUser();
 
   const changeName = trpc.useMutation("user.changeName", {
-    onSuccess: () => {
+    onSuccess: (_, { name }) => {
+      posthog.people.set({ name });
       refresh();
     },
   });
@@ -47,10 +49,9 @@ export const UserDetails: React.VoidFunctionComponent<UserDetailsProps> = ({
         }
         reset(data);
       })}
-      className="card mb-4 p-0"
     >
-      <div className="flex items-center justify-between border-b p-4 shadow-sm">
-        <div className="text-lg text-slate-700 ">{t("yourDetails")}</div>
+      <div className="flex items-center justify-between border-b px-3 py-2 shadow-sm">
+        <div className="font-semibold text-slate-700 ">{t("yourDetails")}</div>
         <MotionButton
           variants={{
             hidden: { opacity: 0, x: 10 },

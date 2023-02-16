@@ -7,11 +7,11 @@ import { usePoll } from "../poll-context";
 import Tooltip from "../tooltip";
 
 const PollSubheader: React.VoidFunctionComponent = () => {
-  const { poll } = usePoll();
+  const { poll, admin } = usePoll();
   const { t } = useTranslation("app");
   const { dayjs } = useDayjs();
   return (
-    <div className="text-slate-500/75 lg:text-lg">
+    <div className="text-slate-500/75">
       <div className="md:inline">
         <Trans
           i18nKey="createdBy"
@@ -23,20 +23,13 @@ const PollSubheader: React.VoidFunctionComponent = () => {
             b: <span />,
           }}
         />
-        {poll.legacy && poll.admin ? (
+        {poll.legacy && admin ? (
           <Tooltip
             width={400}
             content="This poll was created with an older version of Rallly. Some features might not work."
           >
             <Badge color="amber" className="ml-1">
               Legacy
-            </Badge>
-          </Tooltip>
-        ) : null}
-        {poll.demo ? (
-          <Tooltip content={<Trans t={t} i18nKey="demoPollNotice" />}>
-            <Badge color="blue" className="ml-1">
-              Demo
             </Badge>
           </Tooltip>
         ) : null}

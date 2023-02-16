@@ -2,6 +2,8 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { prisma } from "~/prisma/db";
+import newPollTemplate from "~/templates/new-poll";
+import newVerfiedPollTemplate from "~/templates/new-poll-verified";
 
 import { absoluteUrl } from "../../utils/absolute-url";
 import { sendEmailTemplate } from "../../utils/api-utils";
@@ -9,6 +11,7 @@ import { createToken } from "../../utils/auth";
 import { nanoid } from "../../utils/nanoid";
 import { GetPollApiResponse } from "../../utils/trpc/types";
 import { createRouter } from "../createRouter";
+import { publicProcedure, router } from "../trpc";
 import { comments } from "./polls/comments";
 import { demo } from "./polls/demo";
 import { participants } from "./polls/participants";
@@ -22,8 +25,8 @@ const defaultSelectFields: {
   location: true;
   description: true;
   createdAt: true;
-  participantUrlId: true;
   adminUrlId: true;
+  participantUrlId: true;
   verified: true;
   closed: true;
   legacy: true;
@@ -43,8 +46,8 @@ const defaultSelectFields: {
   location: true,
   description: true,
   createdAt: true,
-  participantUrlId: true,
   adminUrlId: true,
+  participantUrlId: true,
   verified: true,
   closed: true,
   legacy: true,
@@ -74,7 +77,7 @@ const getPollIdFromAdminUrlId = async (urlId: string) => {
   return res.id;
 };
 
-export const polls = createRouter()
+export const legacyPolls = createRouter()
   .merge("demo.", demo)
   .merge("participants.", participants)
   .merge("comments.", comments)
@@ -149,9 +152,9 @@ export const polls = createRouter()
       try {
         if (poll.verified) {
           await sendEmailTemplate({
-            templateName: "new-poll-verified",
+            templateString: newVerfiedPollTemplate,
             to: input.user.email,
-            subject: `Rallly: ${poll.title}`,
+            subject: `Your poll for ${poll.title} has been created`,
             templateVars: {
               title: poll.title,
               name: input.user.name,
@@ -167,9 +170,9 @@ export const polls = createRouter()
           const verifyEmailUrl = `${pollUrl}?code=${verificationCode}`;
 
           await sendEmailTemplate({
-            templateName: "new-poll",
+            templateString: newPollTemplate,
             to: input.user.email,
-            subject: `Rallly: ${poll.title} - Verify your email address`,
+            subject: `Your poll for ${poll.title} has been created`,
             templateVars: {
               title: poll.title,
               name: input.user.name,
@@ -185,37 +188,6 @@ export const polls = createRouter()
       }
 
       return { urlId: adminUrlId };
-    },
-  })
-  .query("get", {
-    input: z.object({
-      urlId: z.string(),
-      admin: z.boolean(),
-    }),
-    resolve: async ({ input, ctx }): Promise<GetPollApiResponse> => {
-      const poll = await prisma.poll.findFirst({
-        select: defaultSelectFields,
-        where: input.admin
-          ? {
-              adminUrlId: input.urlId,
-            }
-          : {
-              participantUrlId: input.urlId,
-            },
-      });
-
-      if (!poll) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-        });
-      }
-
-      // We want to keep the adminUrlId in if the user is view
-      if (!input.admin && ctx.session.user?.id !== poll.user.id) {
-        return { ...poll, admin: input.admin, adminUrlId: "" };
-      }
-
-      return { ...poll, admin: input.admin };
     },
   })
   .mutation("update", {
@@ -268,7 +240,7 @@ export const polls = createRouter()
         },
       });
 
-      return { ...poll, admin: true };
+      return { ...poll };
     },
   })
   .mutation("delete", {
@@ -295,3 +267,58 @@ export const polls = createRouter()
       });
     },
   });
+
+export const poll = router({
+  getByAdminUrlId: publicProcedure
+    .input(
+      z.object({
+        urlId: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const res = await prisma.poll.findUnique({
+        select: defaultSelectFields,
+        where: {
+          adminUrlId: input.urlId,
+        },
+        rejectOnNotFound: false,
+      });
+
+      if (!res) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Poll not found",
+        });
+      }
+
+      return res;
+    }),
+  getByParticipantUrlId: publicProcedure
+    .input(
+      z.object({
+        urlId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const res = await prisma.poll.findUnique({
+        select: defaultSelectFields,
+        where: {
+          participantUrlId: input.urlId,
+        },
+        rejectOnNotFound: false,
+      });
+
+      if (!res) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Poll not found",
+        });
+      }
+
+      if (ctx.user.id === res.user.id) {
+        return res;
+      } else {
+        return { ...res, adminUrlId: "" };
+      }
+    }),
+});

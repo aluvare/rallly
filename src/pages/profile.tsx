@@ -1,22 +1,26 @@
-import { NextPage } from "next";
-
 import { withSessionSsr } from "@/utils/auth";
 
+import { getStandardLayout } from "../components/layouts/standard-layout";
 import { Profile } from "../components/profile";
-import { withSession } from "../components/session";
-import StandardLayout from "../components/standard-layout";
+import { NextPageWithLayout } from "../types";
 import { withPageTranslations } from "../utils/with-page-translations";
 
-const Page: NextPage = () => {
-  return (
-    <StandardLayout>
-      <Profile />
-    </StandardLayout>
-  );
+const Page: NextPageWithLayout = () => {
+  return <Profile />;
 };
 
-export const getServerSideProps = withSessionSsr(
-  withPageTranslations(["common", "app"]),
-);
+Page.getLayout = getStandardLayout;
 
-export default withSession(Page);
+export const getServerSideProps = withSessionSsr(async (ctx) => {
+  if (ctx.req.session.user.isGuest !== false) {
+    return {
+      redirect: {
+        destination: "/login",
+      },
+      props: {},
+    };
+  }
+  return withPageTranslations(["common", "app"])(ctx);
+});
+
+export default Page;

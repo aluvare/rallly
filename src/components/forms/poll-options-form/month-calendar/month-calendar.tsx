@@ -1,6 +1,5 @@
 import clsx from "clsx";
 import { useTranslation } from "next-i18next";
-import { usePlausible } from "next-plausible";
 import * as React from "react";
 
 import {
@@ -39,8 +38,6 @@ const MonthCalendar: React.VoidFunctionComponent<DateTimePickerProps> = ({
   const { dayjs, weekStartsOn } = useDayjs();
   const { t } = useTranslation("app");
   const isTimedEvent = options.some((option) => option.type === "timeSlot");
-
-  const plausible = usePlausible();
 
   const optionsByDay = React.useMemo(() => {
     const res: Record<
@@ -84,7 +81,7 @@ const MonthCalendar: React.VoidFunctionComponent<DateTimePickerProps> = ({
 
   return (
     <div className="overflow-hidden lg:flex">
-      <div className="border-b p-4 lg:w-[440px] lg:border-r lg:border-b-0">
+      <div className="border-b p-3 sm:p-4 lg:w-[440px] lg:border-r lg:border-b-0">
         <div>
           <div className="flex w-full flex-col">
             <div className="mb-3 flex items-center justify-center space-x-4">
@@ -114,64 +111,69 @@ const MonthCalendar: React.VoidFunctionComponent<DateTimePickerProps> = ({
                 );
               })}
             </div>
-            <div className="grid grow grid-cols-7 overflow-hidden rounded-lg border bg-white shadow-sm">
+            <div className="grid grow grid-cols-7 rounded-lg border bg-white shadow-sm">
               {datepicker.days.map((day, i) => {
                 return (
-                  <button
-                    type="button"
+                  <div
                     key={i}
-                    onClick={() => {
-                      if (
-                        datepicker.selection.some((selectedDate) =>
-                          dayjs(selectedDate).isSame(day.date, "day"),
-                        )
-                      ) {
-                        onChange(removeAllOptionsForDay(options, day.date));
-                      } else {
-                        const selectedDate = dayjs(day.date)
-                          .set("hour", 12)
-                          .toDate();
-                        const newOption: DateTimeOption = !isTimedEvent
-                          ? {
-                              type: "date",
-                              date: formatDateWithoutTime(selectedDate),
-                            }
-                          : {
-                              type: "timeSlot",
-                              start: formatDateWithoutTz(selectedDate),
-                              end: formatDateWithoutTz(
-                                dayjs(selectedDate)
-                                  .add(duration, "minutes")
-                                  .toDate(),
-                              ),
-                            };
-
-                        onChange([...options, newOption]);
-                        onNavigate(selectedDate);
-                      }
-                      if (day.outOfMonth) {
-                        if (i < 6) {
-                          datepicker.prev();
-                        } else {
-                          datepicker.next();
-                        }
-                      }
-                    }}
-                    className={clsx(
-                      "relative flex h-12 items-center justify-center text-sm hover:bg-slate-50 focus:ring-0 focus:ring-offset-0 active:bg-slate-100",
-                      {
-                        "bg-slate-50 text-slate-400": day.outOfMonth,
-                        "font-bold": day.today,
-                        "text-primary-500": day.today && !day.selected,
-                        "border-r": (i + 1) % 7 !== 0,
-                        "border-b": i < datepicker.days.length - 7,
-                        "font-normal text-white after:absolute after:-z-0 after:h-8 after:w-8 after:animate-popIn after:rounded-full after:bg-green-500 after:content-['']":
-                          day.selected,
-                      },
-                    )}
+                    className={clsx("h-12", {
+                      "border-r": (i + 1) % 7 !== 0,
+                      "border-b": i < datepicker.days.length - 7,
+                    })}
                   >
-                    <span className="z-10">{day.day}</span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (
+                          datepicker.selection.some((selectedDate) =>
+                            dayjs(selectedDate).isSame(day.date, "day"),
+                          )
+                        ) {
+                          onChange(removeAllOptionsForDay(options, day.date));
+                        } else {
+                          const selectedDate = dayjs(day.date)
+                            .set("hour", 12)
+                            .toDate();
+                          const newOption: DateTimeOption = !isTimedEvent
+                            ? {
+                                type: "date",
+                                date: formatDateWithoutTime(selectedDate),
+                              }
+                            : {
+                                type: "timeSlot",
+                                start: formatDateWithoutTz(selectedDate),
+                                end: formatDateWithoutTz(
+                                  dayjs(selectedDate)
+                                    .add(duration, "minutes")
+                                    .toDate(),
+                                ),
+                              };
+
+                          onChange([...options, newOption]);
+                          onNavigate(selectedDate);
+                        }
+                        if (day.outOfMonth) {
+                          if (i < 6) {
+                            datepicker.prev();
+                          } else {
+                            datepicker.next();
+                          }
+                        }
+                      }}
+                      className={clsx(
+                        "relative flex h-full w-full items-center justify-center text-sm hover:bg-slate-50 focus:z-10 focus:rounded active:bg-slate-100",
+                        {
+                          "bg-slate-50 text-slate-400": day.outOfMonth,
+                          "font-bold": day.today,
+                          "text-primary-500": day.today && !day.selected,
+                          "font-normal text-white after:absolute after:-z-0 after:h-8 after:w-8 after:rounded-full after:bg-green-500 after:content-['']":
+                            day.selected,
+                        },
+                      )}
+                    >
+                      <span className="z-10">{day.day}</span>
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -187,7 +189,7 @@ const MonthCalendar: React.VoidFunctionComponent<DateTimePickerProps> = ({
             hidden: datepicker.selection.length === 0,
           })}
         >
-          <div className="flex items-center space-x-3 p-4">
+          <div className="flex items-center space-x-3 p-3 sm:p-4">
             <div className="grow">
               <div className="font-medium">{t("specifyTimes")}</div>
               <div className="text-sm text-slate-400">
@@ -232,7 +234,7 @@ const MonthCalendar: React.VoidFunctionComponent<DateTimePickerProps> = ({
             </div>
           </div>
         </div>
-        <div className="grow px-4">
+        <div className="grow">
           {isTimedEvent ? (
             <div className="divide-y">
               {Object.keys(optionsByDay)
@@ -242,7 +244,7 @@ const MonthCalendar: React.VoidFunctionComponent<DateTimePickerProps> = ({
                   return (
                     <div
                       key={dateString}
-                      className="space-y-3 py-4 sm:flex sm:space-y-0 sm:space-x-4"
+                      className="space-y-3 p-3 sm:flex sm:space-y-0 sm:space-x-4 sm:p-4"
                     >
                       <div>
                         <DateCard
@@ -263,22 +265,29 @@ const MonthCalendar: React.VoidFunctionComponent<DateTimePickerProps> = ({
                               <TimePicker
                                 value={startDate}
                                 onChange={(newStart) => {
-                                  const newEnd = dayjs(newStart)
-                                    .add(duration, "minutes")
-                                    .toDate();
+                                  let newEnd = dayjs(newStart).add(
+                                    duration,
+                                    "minutes",
+                                  );
+
+                                  if (!newEnd.isSame(newStart, "day")) {
+                                    newEnd = newEnd
+                                      .set("hour", 23)
+                                      .set("minute", 45);
+                                  }
                                   // replace enter with updated start time
                                   onChange([
                                     ...options.slice(0, index),
                                     {
                                       ...option,
                                       start: formatDateWithoutTz(newStart),
-                                      end: formatDateWithoutTz(newEnd),
+                                      end: formatDateWithoutTz(newEnd.toDate()),
                                     },
                                     ...options.slice(index + 1),
                                   ]);
                                   onNavigate(newStart);
                                   onChangeDuration(
-                                    dayjs(newEnd).diff(newStart, "minutes"),
+                                    newEnd.diff(newStart, "minutes"),
                                   );
                                 }}
                               />
@@ -348,7 +357,6 @@ const MonthCalendar: React.VoidFunctionComponent<DateTimePickerProps> = ({
                               disabled={datepicker.selection.length < 2}
                               label={t("applyToAllDates")}
                               onClick={() => {
-                                plausible("Applied options to all dates");
                                 const times = optionsForDay.map(
                                   ({ option }) => {
                                     if (option.type === "date") {
@@ -402,7 +410,7 @@ const MonthCalendar: React.VoidFunctionComponent<DateTimePickerProps> = ({
                 })}
             </div>
           ) : datepicker.selection.length ? (
-            <div className="grid grid-cols-[repeat(auto-fill,60px)] gap-5 py-4">
+            <div className="grid grid-cols-[repeat(auto-fill,54px)] gap-3 p-3 sm:gap-4 sm:p-4">
               {datepicker.selection
                 .sort((a, b) => a.getTime() - b.getTime())
                 .map((selectedDate, i) => {

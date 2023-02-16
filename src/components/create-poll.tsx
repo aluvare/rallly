@@ -1,8 +1,7 @@
 import { NextPage } from "next";
-import Head from "next/head";
 import { useRouter } from "next/router";
 import { useTranslation } from "next-i18next";
-import { usePlausible } from "next-plausible";
+import posthog from "posthog-js";
 import React from "react";
 import { useSessionStorage } from "react-use";
 
@@ -18,9 +17,8 @@ import {
   UserDetailsData,
   UserDetailsForm,
 } from "./forms";
-import { SessionProps, useSession, withSession } from "./session";
-import StandardLayout from "./standard-layout";
 import Steps from "./steps";
+import { useUser } from "./user-provider";
 
 type StepName = "eventDetails" | "options" | "userDetails";
 
@@ -37,7 +35,7 @@ const required = <T,>(v: T | undefined): T => {
 const initialNewEventData: NewEventData = { currentStep: 0 };
 const sessionStorageKey = "newEventFormData";
 
-export interface CreatePollPageProps extends SessionProps {
+export interface CreatePollPageProps {
   title?: string;
   location?: string;
   description?: string;
@@ -54,7 +52,7 @@ const Page: NextPage<CreatePollPageProps> = ({
 
   const router = useRouter();
 
-  const session = useSession();
+  const session = useUser();
 
   const [persistedFormData, setPersistedFormData] =
     useSessionStorage<NewEventData>(sessionStorageKey, {
@@ -92,19 +90,15 @@ const Page: NextPage<CreatePollPageProps> = ({
 
   const [isRedirecting, setIsRedirecting] = React.useState(false);
 
-  const plausible = usePlausible();
-
   const createPoll = trpc.useMutation(["polls.create"], {
     onSuccess: (res) => {
       setIsRedirecting(true);
-      plausible("Created poll", {
-        props: {
-          numberOfOptions: formData.options?.options?.length,
-          optionsView: formData?.options?.view,
-        },
+      posthog.capture("created poll", {
+        numberOfOptions: formData.options?.options?.length,
+        optionsView: formData?.options?.view,
       });
       setPersistedFormData(initialNewEventData);
-      router.replace(`/admin/${res.urlId}?sharing=true`);
+      router.replace(`/admin/${res.urlId}`);
     },
   });
 
@@ -149,24 +143,22 @@ const Page: NextPage<CreatePollPageProps> = ({
   };
 
   return (
-    <StandardLayout>
-      <Head>
-        <title>{formData?.eventDetails?.title ?? t("newPoll")}</title>
-        <meta name="robots" content="noindex,nofollow" />
-      </Head>
-      <div className="max-w-full py-4 md:px-3 lg:px-6">
-        <div className="mx-auto w-fit max-w-full lg:mx-0">
-          <div className="mb-4 flex items-center justify-center space-x-4 px-4 lg:justify-start">
-            <h1 className="m-0">{t("newPoll")}</h1>
+    <div className="max-w-full px-3 pb-3 sm:p-4">
+      <div className="max-w-full">
+        <div className="max-w-full overflow-hidden rounded-lg border bg-white shadow-sm">
+          <div className="flex justify-between border-b p-4">
+            <h1 className="m-0 text-xl font-semibold text-slate-800">
+              {t("createNew")}
+            </h1>
             <Steps current={currentStepIndex} total={steps.length} />
           </div>
-          <div className="overflow-hidden border-t border-b bg-white shadow-sm md:rounded-lg md:border">
+          <div className="">
             {(() => {
               switch (currentStepName) {
                 case "eventDetails":
                   return (
                     <PollDetailsForm
-                      className="max-w-full px-4 pt-4"
+                      className="max-w-full p-3 sm:p-4"
                       name={currentStepName}
                       defaultValues={formData?.eventDetails}
                       onSubmit={handleSubmit}
@@ -187,7 +179,7 @@ const Page: NextPage<CreatePollPageProps> = ({
                 case "userDetails":
                   return (
                     <UserDetailsForm
-                      className="grow px-4 pt-4"
+                      className="grow p-4"
                       name={currentStepName}
                       defaultValues={formData?.userDetails}
                       onSubmit={handleSubmit}
@@ -224,8 +216,8 @@ const Page: NextPage<CreatePollPageProps> = ({
           </div>
         </div>
       </div>
-    </StandardLayout>
+    </div>
   );
 };
 
-export default withSession(Page);
+export default Page;
